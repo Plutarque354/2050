@@ -3,9 +3,6 @@ name: Deploy Diplomatic Atlas to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - 'public/**'
-      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
