@@ -1,0 +1,12 @@
+import http from 'node:http';
+import {readFile,stat} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {handleAI} from './ai.mjs';
+const args=process.argv.slice(2);const flag=n=>args.includes(n)?args[args.indexOf(n)+1]:undefined;
+const port=Number(flag('--port')||process.env.PORT)||3000,host=flag('--host')||process.env.HOST||'127.0.0.1';
+const root=fileURLToPath(new URL('../public/',import.meta.url));
+let times=[];const limiter=async()=>{const t=Date.now();times=times.filter(x=>t-x<3600000);if(times.filter(x=>t-x<60000).length>=5||times.length>=60)return false;times.push(t);return true;};
+const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.json':'application/json','.geojson':'application/geo+json','.png':'image/png','.svg':'image/svg+xml'};
+const server=http.createServer(async(req,res)=>{try{const host=req.headers.host||'localhost';const url=new URL(req.url,`http://${host}`);if(url.pathname==='/api/analyze'){const request=new Request(url,{method:req.method,headers:req.headers,...(req.method!=='GET'&&req.method!=='HEAD'?{body:req,duplex:'half'}:{})});const reply=await handleAI(request,process.env,limiter);res.writeHead(reply.status,Object.fromEntries(reply.headers));res.end(await reply.text());return;}if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}let rel=decodeURIComponent(url.pathname);if(rel.includes('\0')||rel.split('/').some(s=>s.startsWith('.'))){res.writeHead(403);res.end();return;}if(rel.endsWith('/'))rel+='index.html';const file=path.resolve(root,'.'+rel);if(!file.startsWith(root)){res.writeHead(403);res.end();return;}await stat(file);res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream','x-content-type-options':'nosniff','cache-control':'no-cache'});res.end(req.method==='HEAD'?undefined:await readFile(file));}catch{res.writeHead(404);res.end('Not found');}});
+server.listen(port,host,()=>console.log(`Diplomatic Atlas: http://${host}:${port}`));
